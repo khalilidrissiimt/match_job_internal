@@ -379,11 +379,11 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
         console.log('Method 1 failed:', error instanceof Error ? error.message : String(error));
       }
 
-      // If that fails, try the alternative method
+      // If that fails, try accessing it again (sometimes it needs a second attempt)
       if (!executablePath) {
         try {
-          executablePath = await chromium.default.executablePath();
-          console.log('Method 2 - executablePath():', executablePath);
+          executablePath = await chromium.default.executablePath;
+          console.log('Method 2 - executablePath (retry):', executablePath);
         } catch (error) {
           console.log('Method 2 failed:', error instanceof Error ? error.message : String(error));
         }
