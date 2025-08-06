@@ -381,7 +381,7 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
     
     // Generate PDF with proper settings
     const pdfBuffer = await page.pdf({
-      format: 'A4',
+      format: 'a4',
       printBackground: true,
       margin: {
         top: '10mm',
