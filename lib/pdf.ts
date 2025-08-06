@@ -366,40 +366,21 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
     if (isServerless) {
       console.log('Using serverless configuration...');
       const puppeteerCore = await import('puppeteer-core');
-      const chromium = await import('chrome-aws-lambda');
+      const chromium = await import('@sparticuz/chromium-min');
 
       console.log('Chromium module loaded:', !!chromium.default);
       
-      // Try multiple ways to get the executable path
-      let executablePath;
-      try {
-        executablePath = await chromium.default.executablePath;
-        console.log('Method 1 - executablePath:', executablePath);
-      } catch (error) {
-        console.log('Method 1 failed:', error instanceof Error ? error.message : String(error));
-      }
-
-      // If that fails, try accessing it again (sometimes it needs a second attempt)
-      if (!executablePath) {
-        try {
-          executablePath = await chromium.default.executablePath;
-          console.log('Method 2 - executablePath (retry):', executablePath);
-        } catch (error) {
-          console.log('Method 2 failed:', error instanceof Error ? error.message : String(error));
-        }
-      }
-
-      // If still no path, use the bundled path directly
-      if (!executablePath) {
-        executablePath = '/tmp/chromium';
-        console.log('Method 3 - fallback path:', executablePath);
-      }
-
-      console.log('Final executable path:', executablePath);
-      console.log('Chromium args length:', chromium.default.args?.length || 0);
+      // Use @sparticuz/chromium-min with hosted tar file
+      const executablePath = await chromium.default.executablePath(
+        'https://github.com/Sparticuz/chromium/releases/download/v119.0.2/chromium-v119.0.2-pack.tar'
+      );
+      
+      console.log('Executable Path:', executablePath);
+      console.log('Chromium args:', chromium.default.args);
 
       browser = await puppeteerCore.default.launch({
-        args: chromium.default.args || [
+        args: [
+          ...chromium.default.args,
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
@@ -408,9 +389,9 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
           '--no-zygote',
           '--disable-gpu'
         ],
-        defaultViewport: chromium.default.defaultViewport || { width: 1280, height: 720 },
+        defaultViewport: chromium.default.defaultViewport,
         executablePath: executablePath,
-        headless: chromium.default.headless !== false,
+        headless: chromium.default.headless,
         ignoreHTTPSErrors: true,
       });
     } else {
@@ -423,13 +404,13 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
     const htmlContent = createHTMLContent(candidates);
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
-    const pdfBuffer = await page.pdf({
+  const pdfBuffer = await page.pdf({
       format: 'a4',
-      printBackground: true,
-      margin: {
-        top: '10mm',
-        right: '10mm',
-        bottom: '10mm',
+    printBackground: true,
+    margin: {
+      top: '10mm',
+      right: '10mm',
+      bottom: '10mm',
         left: '10mm',
       },
     });
