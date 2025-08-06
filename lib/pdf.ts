@@ -376,7 +376,7 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
         executablePath = await chromium.default.executablePath;
         console.log('Method 1 - executablePath:', executablePath);
       } catch (error) {
-        console.log('Method 1 failed:', error.message);
+        console.log('Method 1 failed:', error instanceof Error ? error.message : String(error));
       }
 
       // If that fails, try the alternative method
@@ -385,7 +385,7 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
           executablePath = await chromium.default.executablePath();
           console.log('Method 2 - executablePath():', executablePath);
         } catch (error) {
-          console.log('Method 2 failed:', error.message);
+          console.log('Method 2 failed:', error instanceof Error ? error.message : String(error));
         }
       }
 
