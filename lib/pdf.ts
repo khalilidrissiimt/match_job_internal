@@ -358,11 +358,11 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
     
     if (isServerless) {
       // Dynamic imports for serverless environment
-      const puppeteer = await import('puppeteer-core')
+      const puppeteerCore = await import('puppeteer-core')
       const chromium = await import('chrome-aws-lambda')
       
       // Configure browser for serverless environment using chrome-aws-lambda
-      browser = await puppeteer.default.launch({
+      browser = await puppeteerCore.default.launch({
         args: chromium.default.args,
         defaultViewport: chromium.default.defaultViewport,
         executablePath: await chromium.default.executablePath,
@@ -370,9 +370,9 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
         ignoreHTTPSErrors: true,
       })
     } else {
-      // Dynamic import for local development
-      const puppeteer = await import('puppeteer')
-      browser = await puppeteer.default.launch({
+      // Dynamic import for local development - use puppeteer-core since that's what we have
+      const puppeteerCore = await import('puppeteer-core')
+      browser = await puppeteerCore.default.launch({
         headless: true,
       })
     }
