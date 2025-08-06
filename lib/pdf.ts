@@ -1,5 +1,5 @@
-import puppeteer from 'puppeteer-core'
-import chromium from 'chrome-aws-lambda'
+// Dynamic imports will be used based on environment
+// No static imports for puppeteer to avoid browser resolution conflicts
 
 export interface PDFCandidate {
   candidate_name: string
@@ -357,18 +357,22 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
     const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
     
     if (isServerless) {
+      // Dynamic imports for serverless environment
+      const puppeteer = await import('puppeteer-core')
+      const chromium = await import('chrome-aws-lambda')
+      
       // Configure browser for serverless environment using chrome-aws-lambda
-      browser = await puppeteer.launch({
-        args: chromium.args,
-        defaultViewport: chromium.defaultViewport,
-        executablePath: await chromium.executablePath,
-        headless: chromium.headless,
+      browser = await puppeteer.default.launch({
+        args: chromium.default.args,
+        defaultViewport: chromium.default.defaultViewport,
+        executablePath: await chromium.default.executablePath,
+        headless: chromium.default.headless,
         ignoreHTTPSErrors: true,
       })
     } else {
-      // Use full puppeteer for local development
-      const puppeteerFull = await import('puppeteer')
-      browser = await puppeteerFull.default.launch({
+      // Dynamic import for local development
+      const puppeteer = await import('puppeteer')
+      browser = await puppeteer.default.launch({
         headless: true,
       })
     }
