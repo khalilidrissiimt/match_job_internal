@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer'
+import puppeteer from 'puppeteer-core'
+import chromium from '@sparticuz/chromium'
 
 export interface PDFCandidate {
   candidate_name: string
@@ -349,26 +350,54 @@ function createHTMLContent(candidates: PDFCandidate[]): string {
 
 
 export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uint8Array> {
-  const browser = await puppeteer.launch({ headless: true })
-  const page = await browser.newPage()
+  let browser
   
-  // Set content with proper UTF-8 encoding
-  const htmlContent = createHTMLContent(candidates)
-  await page.setContent(htmlContent, { waitUntil: 'networkidle0' })
-  
-  // Generate PDF with proper settings
-  const pdfBuffer = await page.pdf({
-    format: 'A4',
-    printBackground: true,
-    margin: {
-      top: '10mm',
-      right: '10mm',
-      bottom: '10mm',
-      left: '10mm'
+  try {
+    // Check if running on Vercel or in production
+    const isVercel = !!process.env.VERCEL || process.env.NODE_ENV === 'production'
+    
+    if (isVercel) {
+      // Configure browser for Vercel serverless environment
+      browser = await puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless,
+        ignoreHTTPSErrors: true,
+      })
+    } else {
+      // Use full puppeteer for local development
+      const puppeteerFull = await import('puppeteer')
+      browser = await puppeteerFull.default.launch({
+        headless: true,
+      })
     }
-  })
-  
-  await browser.close()
-  
-  return new Uint8Array(pdfBuffer)
+    
+    const page = await browser.newPage()
+    
+    // Set content with proper UTF-8 encoding
+    const htmlContent = createHTMLContent(candidates)
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' })
+    
+    // Generate PDF with proper settings
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '10mm',
+        right: '10mm',
+        bottom: '10mm',
+        left: '10mm'
+      }
+    })
+    
+    await browser.close()
+    
+    return new Uint8Array(pdfBuffer)
+  } catch (error) {
+    if (browser) {
+      await browser.close()
+    }
+    throw error
+  }
 } 
