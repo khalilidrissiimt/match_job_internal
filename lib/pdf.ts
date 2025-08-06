@@ -1,5 +1,4 @@
-// Dynamic imports will be used based on environment
-// No static imports for puppeteer to avoid browser resolution conflicts
+import jsPDF from 'jspdf'
 
 export interface PDFCandidate {
   candidate_name: string
@@ -350,72 +349,126 @@ function createHTMLContent(candidates: PDFCandidate[]): string {
 
 
 export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uint8Array> {
-  let browser;
-
   try {
-    // Enhanced environment detection with debugging
-    console.log('Environment variables:');
-    console.log('- VERCEL:', process.env.VERCEL);
-    console.log('- VERCEL_ENV:', process.env.VERCEL_ENV);
-    console.log('- AWS_LAMBDA_FUNCTION_NAME:', process.env.AWS_LAMBDA_FUNCTION_NAME);
-    console.log('- NODE_ENV:', process.env.NODE_ENV);
+    console.log('Generating PDF with jsPDF (serverless-friendly)...');
     
-    const isServerless = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL || process.env.VERCEL_ENV);
-    console.log('Is Serverless:', isServerless);
-
-    if (isServerless) {
-      console.log('Using @sparticuz/chromium for serverless...');
-      const puppeteer = await import('puppeteer-core');
-      const chromium = await import('@sparticuz/chromium');
-      
-      const executablePath = await chromium.default.executablePath();
-      console.log('Chromium executable path:', executablePath);
-      
-      browser = await puppeteer.default.launch({
-        args: [
-          ...chromium.default.args,
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu',
-          '--single-process',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding'
-        ],
-        defaultViewport: chromium.default.defaultViewport,
-        executablePath,
-        headless: chromium.default.headless,
-        ignoreHTTPSErrors: true,
-      });
-    } else {
-      console.log('Using Puppeteer for local development...');
-      const puppeteer = await import('puppeteer');
-      browser = await puppeteer.default.launch({ headless: true });
-    }
-
-    const page = await browser.newPage();
-    const htmlContent = createHTMLContent(candidates);
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-
-    const pdfBuffer = await page.pdf({
-      format: 'a4',
-      printBackground: true,
-      margin: {
-        top: '10mm',
-        right: '10mm',
-        bottom: '10mm',
-        left: '10mm',
-      },
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
     });
 
-    await browser.close();
+    // Set font and margins
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const maxWidth = pageWidth - (margin * 2);
+    let yPosition = margin;
+
+    // Title
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Candidate Matching Report', margin, yPosition);
+    yPosition += 15;
+
+    // Metadata
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, margin, yPosition);
+    doc.text(`Total Candidates: ${candidates.length}`, pageWidth - margin - 40, yPosition);
+    yPosition += 20;
+
+    // Process each candidate
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      
+      // Check if we need a new page
+      if (yPosition > pageHeight - 60) {
+        doc.addPage();
+        yPosition = margin;
+      }
+
+      // Candidate header
+      doc.setFillColor(60, 141, 188);
+      doc.rect(margin, yPosition - 5, maxWidth, 12, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${i + 1}. ${candidate.candidate_name}`, margin + 3, yPosition + 3);
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.text(`Matches: ${candidate.match_count}`, pageWidth - margin - 30, yPosition + 3);
+      yPosition += 20;
+
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
+
+      // Skills section
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Matched Skills:', margin, yPosition);
+      yPosition += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const skillsText = candidate.matched_skills.join(', ');
+      const skillsLines = doc.splitTextToSize(skillsText, maxWidth);
+      doc.text(skillsLines, margin, yPosition);
+      yPosition += skillsLines.length * 5 + 5;
+
+      // Summary section
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary:', margin, yPosition);
+      yPosition += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const summaryLines = doc.splitTextToSize(candidate.summary || 'No summary available', maxWidth);
+      doc.text(summaryLines, margin, yPosition);
+      yPosition += summaryLines.length * 5 + 5;
+
+      // Feedback section
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Feedback Review:', margin, yPosition);
+      yPosition += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const feedbackLines = doc.splitTextToSize(candidate.feedback_review || 'No feedback available', maxWidth);
+      doc.text(feedbackLines, margin, yPosition);
+      yPosition += feedbackLines.length * 5 + 5;
+
+      // Email section (if available)
+      if (candidate.email) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Email:', margin, yPosition);
+        yPosition += 8;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(candidate.email, margin, yPosition);
+        yPosition += 10;
+      }
+
+      // Add separator line
+      if (i < candidates.length - 1) {
+        doc.setDrawColor(200, 200, 200);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += 15;
+      }
+    }
+
+    // Get PDF as array buffer
+    const pdfBuffer = doc.output('arraybuffer');
+    console.log('PDF generated successfully with jsPDF');
+    
     return new Uint8Array(pdfBuffer);
   } catch (error) {
-    if (browser) await browser.close();
     console.error('PDF generation error:', error);
     throw error;
   }
