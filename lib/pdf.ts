@@ -369,19 +369,48 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
       const chromium = await import('chrome-aws-lambda');
 
       console.log('Chromium module loaded:', !!chromium.default);
-      const executablePath = await chromium.default.executablePath;
-      console.log('Executable Path:', executablePath);
-      console.log('Chromium args length:', chromium.default.args.length);
-
-      if (!executablePath) {
-        throw new Error('chrome-aws-lambda executablePath is null or undefined');
+      
+      // Try multiple ways to get the executable path
+      let executablePath;
+      try {
+        executablePath = await chromium.default.executablePath;
+        console.log('Method 1 - executablePath:', executablePath);
+      } catch (error) {
+        console.log('Method 1 failed:', error.message);
       }
 
+      // If that fails, try the alternative method
+      if (!executablePath) {
+        try {
+          executablePath = await chromium.default.executablePath();
+          console.log('Method 2 - executablePath():', executablePath);
+        } catch (error) {
+          console.log('Method 2 failed:', error.message);
+        }
+      }
+
+      // If still no path, use the bundled path directly
+      if (!executablePath) {
+        executablePath = '/tmp/chromium';
+        console.log('Method 3 - fallback path:', executablePath);
+      }
+
+      console.log('Final executable path:', executablePath);
+      console.log('Chromium args length:', chromium.default.args?.length || 0);
+
       browser = await puppeteerCore.default.launch({
-        args: chromium.default.args,
-        defaultViewport: chromium.default.defaultViewport,
+        args: chromium.default.args || [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu'
+        ],
+        defaultViewport: chromium.default.defaultViewport || { width: 1280, height: 720 },
         executablePath: executablePath,
-        headless: chromium.default.headless,
+        headless: chromium.default.headless !== false,
         ignoreHTTPSErrors: true,
       });
     } else {
