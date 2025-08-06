@@ -353,30 +353,41 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
   let browser;
 
   try {
-    const isServerless = !!process.env.AWS_REGION;
+    // Enhanced environment detection with debugging
+    console.log('Environment variables:');
+    console.log('- VERCEL:', process.env.VERCEL);
+    console.log('- VERCEL_ENV:', process.env.VERCEL_ENV);
+    console.log('- AWS_LAMBDA_FUNCTION_NAME:', process.env.AWS_LAMBDA_FUNCTION_NAME);
+    console.log('- NODE_ENV:', process.env.NODE_ENV);
+    
+    const isServerless = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL || process.env.VERCEL_ENV);
+    console.log('Is Serverless:', isServerless);
 
     if (isServerless) {
+      console.log('Using serverless configuration...');
       const puppeteerCore = await import('puppeteer-core');
       const chromium = await import('chrome-aws-lambda');
 
+      console.log('Chromium module loaded:', !!chromium.default);
       const executablePath = await chromium.default.executablePath;
+      console.log('Executable Path:', executablePath);
+      console.log('Chromium args length:', chromium.default.args.length);
 
-      console.log('Vercel: Using chrome-aws-lambda');
-      console.log('Executable path:', executablePath);
+      if (!executablePath) {
+        throw new Error('chrome-aws-lambda executablePath is null or undefined');
+      }
 
       browser = await puppeteerCore.default.launch({
         args: chromium.default.args,
         defaultViewport: chromium.default.defaultViewport,
-        executablePath: executablePath ?? undefined,
+        executablePath: executablePath,
         headless: chromium.default.headless,
         ignoreHTTPSErrors: true,
       });
     } else {
+      console.log('Using local development configuration...');
       const puppeteer = await import('puppeteer');
-      console.log('Local: Using full Puppeteer');
-      browser = await puppeteer.default.launch({
-        headless: true,
-      });
+      browser = await puppeteer.default.launch({ headless: true });
     }
 
     const page = await browser.newPage();
