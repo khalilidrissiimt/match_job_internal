@@ -1,5 +1,5 @@
 import puppeteer from 'puppeteer-core'
-import chromium from '@sparticuz/chromium'
+import chromium from 'chrome-aws-lambda'
 
 export interface PDFCandidate {
   candidate_name: string
@@ -353,54 +353,16 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
   let browser
   
   try {
-    // Check if running on Vercel
-    const isProduction = process.env.VERCEL_ENV === "production"
+    // Check if running in serverless environment (Vercel)
+    const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
     
-    if (isProduction) {
-      // Configure browser for Vercel serverless environment  
-      const executablePath = await chromium.executablePath()
-      
+    if (isServerless) {
+      // Configure browser for serverless environment using chrome-aws-lambda
       browser = await puppeteer.launch({
-        args: [
-          ...chromium.args,
-          "--autoplay-policy=user-gesture-required",
-          "--disable-background-networking",
-          "--disable-background-timer-throttling", 
-          "--disable-backgrounding-occluded-windows",
-          "--disable-breakpad",
-          "--disable-client-side-phishing-detection",
-          "--disable-component-update",
-          "--disable-default-apps",
-          "--disable-dev-shm-usage",
-          "--disable-domain-reliability",
-          "--disable-extensions",
-          "--disable-features=AudioServiceOutOfProcess",
-          "--disable-hang-monitor",
-          "--disable-ipc-flooding-protection",
-          "--disable-notifications",
-          "--disable-offer-store-unmasked-wallet-cards",
-          "--disable-popup-blocking",
-          "--disable-print-preview",
-          "--disable-prompt-on-repost",
-          "--disable-renderer-backgrounding",
-          "--disable-setuid-sandbox",
-          "--disable-speech-api",
-          "--disable-sync",
-          "--hide-scrollbars",
-          "--ignore-gpu-blacklist",
-          "--metrics-recording-only",
-          "--mute-audio",
-          "--no-default-browser-check",
-          "--no-first-run",
-          "--no-pings",
-          "--no-sandbox",
-          "--no-zygote",
-          "--password-store=basic",
-          "--use-gl=swiftshader",
-          "--use-mock-keychain"
-        ],
-        executablePath,
-        headless: true,
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath,
+        headless: chromium.headless,
         ignoreHTTPSErrors: true,
       })
     } else {
