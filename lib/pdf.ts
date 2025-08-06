@@ -353,18 +353,16 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
   let browser;
 
   try {
-    const isServerless = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL);
-    
-    console.log('Running in Vercel:', !!process.env.VERCEL);
-    console.log('Is Serverless:', isServerless);
+    const isServerless = !!process.env.AWS_REGION;
 
     if (isServerless) {
-      // Use chrome-aws-lambda + puppeteer-core
       const puppeteerCore = await import('puppeteer-core');
       const chromium = await import('chrome-aws-lambda');
 
       const executablePath = await chromium.default.executablePath;
-      console.log('Executable Path:', executablePath);
+
+      console.log('Vercel: Using chrome-aws-lambda');
+      console.log('Executable path:', executablePath);
 
       browser = await puppeteerCore.default.launch({
         args: chromium.default.args,
@@ -373,16 +371,16 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
         headless: chromium.default.headless,
         ignoreHTTPSErrors: true,
       });
-
     } else {
-      // Use full puppeteer locally (includes Chromium)
       const puppeteer = await import('puppeteer');
-      browser = await puppeteer.default.launch({ headless: true });
+      console.log('Local: Using full Puppeteer');
+      browser = await puppeteer.default.launch({
+        headless: true,
+      });
     }
 
     const page = await browser.newPage();
     const htmlContent = createHTMLContent(candidates);
-
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
     const pdfBuffer = await page.pdf({
@@ -403,4 +401,4 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
     console.error('PDF generation error:', error);
     throw error;
   }
-} 
+}
