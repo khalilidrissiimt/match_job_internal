@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['pdf-lib', 'playwright-core', 'playwright']
+    serverComponentsExternalPackages: ['pdf-lib', 'puppeteer-core', '@sparticuz/chromium', 'puppeteer']
   }
 }
 

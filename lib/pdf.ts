@@ -364,12 +364,16 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
     console.log('Is Serverless:', isServerless);
 
     if (isServerless) {
-      console.log('Using Playwright for serverless...');
-      const { chromium } = await import('playwright-core');
+      console.log('Using @sparticuz/chromium for serverless...');
+      const puppeteer = await import('puppeteer-core');
+      const chromium = await import('@sparticuz/chromium');
       
-      browser = await chromium.launch({
-        headless: true,
+      const executablePath = await chromium.default.executablePath();
+      console.log('Chromium executable path:', executablePath);
+      
+      browser = await puppeteer.default.launch({
         args: [
+          ...chromium.default.args,
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
@@ -377,23 +381,28 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
           '--no-first-run',
           '--no-zygote',
           '--disable-gpu',
+          '--single-process',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding'
-        ]
+        ],
+        defaultViewport: chromium.default.defaultViewport,
+        executablePath,
+        headless: chromium.default.headless,
+        ignoreHTTPSErrors: true,
       });
     } else {
-      console.log('Using Playwright for local development...');
-      const { chromium } = await import('playwright');
-      browser = await chromium.launch({ headless: true });
+      console.log('Using Puppeteer for local development...');
+      const puppeteer = await import('puppeteer');
+      browser = await puppeteer.default.launch({ headless: true });
     }
 
     const page = await browser.newPage();
     const htmlContent = createHTMLContent(candidates);
-    await page.setContent(htmlContent, { waitUntil: 'networkidle' });
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
     const pdfBuffer = await page.pdf({
-      format: 'A4',
+      format: 'a4',
       printBackground: true,
       margin: {
         top: '10mm',
