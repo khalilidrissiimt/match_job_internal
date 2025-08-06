@@ -391,7 +391,7 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
         ],
         defaultViewport: chromium.default.defaultViewport,
         executablePath: executablePath,
-        headless: chromium.default.headless,
+        headless: chromium.default.headless === 'new' ? true : chromium.default.headless,
         ignoreHTTPSErrors: true,
       });
     } else {
