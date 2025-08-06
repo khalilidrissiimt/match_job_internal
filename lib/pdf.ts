@@ -350,40 +350,41 @@ function createHTMLContent(candidates: PDFCandidate[]): string {
 
 
 export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uint8Array> {
-  let browser
-  
+  let browser;
+
   try {
-    // Check if running in serverless environment (Vercel)
-    const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    const isServerless = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL);
     
+    console.log('Running in Vercel:', !!process.env.VERCEL);
+    console.log('Is Serverless:', isServerless);
+
     if (isServerless) {
-      // Dynamic imports for serverless environment
-      const puppeteerCore = await import('puppeteer-core')
-      const chromium = await import('chrome-aws-lambda')
-      
-      // Configure browser for serverless environment using chrome-aws-lambda
+      // Use chrome-aws-lambda + puppeteer-core
+      const puppeteerCore = await import('puppeteer-core');
+      const chromium = await import('chrome-aws-lambda');
+
+      const executablePath = await chromium.default.executablePath;
+      console.log('Executable Path:', executablePath);
+
       browser = await puppeteerCore.default.launch({
         args: chromium.default.args,
         defaultViewport: chromium.default.defaultViewport,
-        executablePath: await chromium.default.executablePath,
+        executablePath: executablePath ?? undefined,
         headless: chromium.default.headless,
         ignoreHTTPSErrors: true,
-      })
+      });
+
     } else {
-      // Dynamic import for local development - use puppeteer-core since that's what we have
-      const puppeteerCore = await import('puppeteer-core')
-      browser = await puppeteerCore.default.launch({
-        headless: true,
-      })
+      // Use full puppeteer locally (includes Chromium)
+      const puppeteer = await import('puppeteer');
+      browser = await puppeteer.default.launch({ headless: true });
     }
-    
-    const page = await browser.newPage()
-    
-    // Set content with proper UTF-8 encoding
-    const htmlContent = createHTMLContent(candidates)
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' })
-    
-    // Generate PDF with proper settings
+
+    const page = await browser.newPage();
+    const htmlContent = createHTMLContent(candidates);
+
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
     const pdfBuffer = await page.pdf({
       format: 'a4',
       printBackground: true,
@@ -391,17 +392,15 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
         top: '10mm',
         right: '10mm',
         bottom: '10mm',
-        left: '10mm'
-      }
-    })
-    
-    await browser.close()
-    
-    return new Uint8Array(pdfBuffer)
+        left: '10mm',
+      },
+    });
+
+    await browser.close();
+    return new Uint8Array(pdfBuffer);
   } catch (error) {
-    if (browser) {
-      await browser.close()
-    }
-    throw error
+    if (browser) await browser.close();
+    console.error('PDF generation error:', error);
+    throw error;
   }
 } 
