@@ -364,53 +364,41 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
     console.log('Is Serverless:', isServerless);
 
     if (isServerless) {
-      console.log('Using serverless configuration...');
-      const puppeteerCore = await import('puppeteer-core');
-      const chromium = await import('@sparticuz/chromium-min');
-
-      console.log('Chromium module loaded:', !!chromium.default);
+      console.log('Using Playwright for serverless...');
+      const { chromium } = await import('playwright-core');
       
-      // Use @sparticuz/chromium-min with hosted tar file
-      const executablePath = await chromium.default.executablePath(
-        'https://github.com/Sparticuz/chromium/releases/download/v119.0.2/chromium-v119.0.2-pack.tar'
-      );
-      
-      console.log('Executable Path:', executablePath);
-      console.log('Chromium args:', chromium.default.args);
-
-      browser = await puppeteerCore.default.launch({
+      browser = await chromium.launch({
+        headless: true,
         args: [
-          ...chromium.default.args,
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu'
-        ],
-        defaultViewport: chromium.default.defaultViewport,
-        executablePath: executablePath,
-        headless: chromium.default.headless === 'new' ? true : chromium.default.headless,
-        ignoreHTTPSErrors: true,
+          '--disable-gpu',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding'
+        ]
       });
     } else {
-      console.log('Using local development configuration...');
-      const puppeteer = await import('puppeteer');
-      browser = await puppeteer.default.launch({ headless: true });
+      console.log('Using Playwright for local development...');
+      const { chromium } = await import('playwright');
+      browser = await chromium.launch({ headless: true });
     }
 
     const page = await browser.newPage();
     const htmlContent = createHTMLContent(candidates);
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    await page.setContent(htmlContent, { waitUntil: 'networkidle' });
 
-  const pdfBuffer = await page.pdf({
-      format: 'a4',
-    printBackground: true,
-    margin: {
-      top: '10mm',
-      right: '10mm',
-      bottom: '10mm',
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '10mm',
+        right: '10mm',
+        bottom: '10mm',
         left: '10mm',
       },
     });
