@@ -174,15 +174,41 @@ export async function POST(request: NextRequest) {
       console.log(`   📋 Candidates without resumes: ${candidatesWithoutResumes.map(c => c.candidate_name).join(', ')}`)
     }
     
-    const generatedPdfBuffer = await generatePDFReport(processedCandidates)
-    const pdfBase64 = Buffer.from(generatedPdfBuffer).toString('base64')
-    console.log('✅ PDF generated successfully for webhook with resumes')
+    // Generate individual PDFs for each candidate
+    const candidatePDFs = []
+    
+    for (const candidate of processedCandidates) {
+      try {
+        const pdfBuffer = await generatePDFReport([candidate]) // Pass single candidate
+        const pdfBase64 = Buffer.from(pdfBuffer).toString('base64')
+        
+        candidatePDFs.push({
+          candidate_name: candidate.candidate_name,
+          pdf_base64: pdfBase64,
+          match_count: candidate.match_count,
+          matched_skills: candidate.matched_skills
+        })
+        
+        console.log(`✅ Generated PDF for ${candidate.candidate_name}`)
+      } catch (error) {
+        console.error(`❌ Failed to generate PDF for ${candidate.candidate_name}:`, error)
+        candidatePDFs.push({
+          candidate_name: candidate.candidate_name,
+          pdf_base64: null,
+          error: 'PDF generation failed',
+          match_count: candidate.match_count,
+          matched_skills: candidate.matched_skills
+        })
+      }
+    }
+
+    console.log('✅ All candidate PDFs generated successfully for webhook')
 
     // Prepare response data
     const responseData = {
       success: true,
       candidates: processedCandidates,
-      pdf_base64: pdfBase64,
+      candidate_pdfs: candidatePDFs,
       extracted_skills: jobSkills,
       processed_at: new Date().toISOString(),
       total_candidates_found: allCandidates.length,

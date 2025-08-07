@@ -15,9 +15,17 @@ interface Candidate {
   cv_resume?: string
 }
 
+interface CandidatePDF {
+  candidate_name: string
+  pdf_base64: string | null
+  match_count: number
+  matched_skills: string[]
+  error?: string
+}
+
 interface MatchResult {
   candidates: Candidate[]
-  pdf_base64: string
+  candidate_pdfs: CandidatePDF[]
   extracted_skills: string[]
 }
 
@@ -110,22 +118,35 @@ export default function Home() {
     }
   }
 
-  const downloadPDF = () => {
-    if (!result?.pdf_base64) return
+  const downloadPDF = (candidatePDF: CandidatePDF) => {
+    if (!candidatePDF.pdf_base64) {
+      console.error('No PDF data available for', candidatePDF.candidate_name)
+      return
+    }
     
     const pdfBlob = new Blob(
-      [Uint8Array.from(atob(result.pdf_base64), c => c.charCodeAt(0))],
+      [Uint8Array.from(atob(candidatePDF.pdf_base64), c => c.charCodeAt(0))],
       { type: 'application/pdf' }
     )
     
     const url = URL.createObjectURL(pdfBlob)
     const link = document.createElement('a')
     link.href = url
-    link.download = 'matched_candidates.pdf'
+    link.download = `${candidatePDF.candidate_name.replace(/[^a-zA-Z0-9]/g, '_')}_report.pdf`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
+  }
+
+  const downloadAllPDFs = () => {
+    if (!result?.candidate_pdfs) return
+    
+    result.candidate_pdfs.forEach(candidatePDF => {
+      if (candidatePDF.pdf_base64) {
+        downloadPDF(candidatePDF)
+      }
+    })
   }
 
   const getFeedbackIcon = (feedback: string) => {
@@ -327,13 +348,15 @@ export default function Home() {
               <h2 className="text-2xl font-semibold text-gray-900">
                 🏆 Top Matching Candidates
               </h2>
-              <button
-                onClick={downloadPDF}
-                className="bg-green-600 text-white py-2 px-4 rounded-md font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                📥 Download PDF Report
-              </button>
+              <div className="flex space-x-2">
+                <button
+                  onClick={downloadAllPDFs}
+                  className="bg-green-600 text-white py-2 px-4 rounded-md font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  📥 Download All PDFs
+                </button>
+              </div>
             </div>
 
             {/* Extracted Skills */}
@@ -372,7 +395,19 @@ export default function Home() {
                         </span>
                       </div>
                     </div>
-                    {getFeedbackIcon(candidate.feedback_review)}
+                    <div className="flex items-center space-x-2">
+                      {getFeedbackIcon(candidate.feedback_review)}
+                      {result.candidate_pdfs[index] && (
+                        <button
+                          onClick={() => downloadPDF(result.candidate_pdfs[index])}
+                          disabled={!result.candidate_pdfs[index].pdf_base64}
+                          className="bg-blue-600 text-white py-1 px-3 rounded text-xs font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Download className="w-3 h-3 mr-1" />
+                          PDF
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Main Content - Split Layout */}
