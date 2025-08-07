@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { extractSkills, summarizeSkills, analyzeFeedback } from '@/lib/ai'
-import { generatePDFReport } from '@/lib/pdf'
+import { generatePDFReport } from '@/lib/pdf-generator'
 import { extractTextFromPDF } from '@/lib/pdf-extractor'
 import { fetchCandidatesPaginated, matchCandidates } from '@/lib/supabase'
 

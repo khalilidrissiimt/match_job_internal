@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { extractSkills, summarizeSkills, analyzeFeedback } from '@/lib/ai'
 import { fetchCandidatesPaginated, matchCandidates } from '@/lib/supabase'
-import { generatePDFReport } from '@/lib/pdf'
+import { generatePDFReport } from '@/lib/pdf-generator'
 
 export async function POST(request: NextRequest) {
   try {
