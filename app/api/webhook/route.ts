@@ -118,9 +118,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Generate PDF report
+    // Generate PDF report (webhook doesn't include resume PDFs)
+    console.log('🔄 Generating PDF report for webhook (no resume PDFs included)...')
     const generatedPdfBuffer = await generatePDFReport(processedCandidates)
     const pdfBase64 = Buffer.from(generatedPdfBuffer).toString('base64')
+    console.log('✅ PDF generated successfully for webhook')
 
     // Prepare response data
     const responseData = {

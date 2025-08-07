@@ -313,60 +313,34 @@ function PDFDocumentComponent({ candidates }: { candidates: PDFCandidate[] }) {
 
 export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uint8Array> {
   try {
-    console.log('Generating PDF with @react-pdf/renderer (supports Arabic, English, Unicode, and emojis)...')
+    console.log('Generating PDF with candidate information and embedded resumes...')
     
-    // Import renderToBuffer dynamically to avoid SSR issues
-    const { renderToBuffer } = await import('@react-pdf/renderer')
-    
-    // Create the main report PDF
-    const mainReportBuffer = await renderToBuffer(
-      <PDFDocumentComponent candidates={candidates} />
-    )
-    
-    // If we have resume PDFs, merge them
-    const candidatesWithResumes = candidates.filter(c => c.cv_resume_pdf)
-    
-    if (candidatesWithResumes.length > 0) {
-      console.log(`Merging ${candidatesWithResumes.length} resume PDFs...`)
-      
-      // Create a combined PDF with main report + resume PDFs
-      const combinedPdf = await mergePDFs(mainReportBuffer, candidatesWithResumes)
-      console.log('PDF generated successfully with embedded resumes')
-      return combinedPdf
-    }
-    
-    console.log('PDF generated successfully with @react-pdf/renderer')
-    return new Uint8Array(mainReportBuffer)
-    
-  } catch (error) {
-    console.error('PDF generation error:', error)
-    throw new Error(`PDF generation failed: ${error instanceof Error ? error.message : String(error)}`)
-  }
-}
-
-// Helper function to merge PDFs
-async function mergePDFs(mainReportBuffer: Uint8Array, candidatesWithResumes: PDFCandidate[]): Promise<Uint8Array> {
-  try {
     // Import PDF-lib for merging
     const { PDFDocument } = await import('pdf-lib')
     
     // Create a new PDF document
-    const mergedPdf = await PDFDocument.create()
+    const finalPdf = await PDFDocument.create()
     
-    // Add the main report
-    const mainReportPdf = await PDFDocument.load(mainReportBuffer)
-    const mainReportPages = await mergedPdf.copyPages(mainReportPdf, mainReportPdf.getPageIndices())
-    mainReportPages.forEach((page: any) => mergedPdf.addPage(page))
-    
-    // Add each candidate's resume PDF
-    for (const candidate of candidatesWithResumes) {
+    // Process each candidate individually
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i]
+      
+      // Generate candidate information PDF
+      const candidateInfoBuffer = await generateCandidateInfoPDF([candidate])
+      
+      // Add candidate information pages
+      const candidateInfoPdf = await PDFDocument.load(candidateInfoBuffer)
+      const candidateInfoPages = await finalPdf.copyPages(candidateInfoPdf, candidateInfoPdf.getPageIndices())
+      candidateInfoPages.forEach((page: any) => finalPdf.addPage(page))
+      
+      // If candidate has resume, add it immediately after their information
       if (candidate.cv_resume_pdf) {
         try {
           const resumePdf = await PDFDocument.load(candidate.cv_resume_pdf)
-          const resumePages = await mergedPdf.copyPages(resumePdf, resumePdf.getPageIndices())
+          const resumePages = await finalPdf.copyPages(resumePdf, resumePdf.getPageIndices())
           
           // Add a separator page with candidate name
-          const separatorPage = mergedPdf.addPage()
+          const separatorPage = finalPdf.addPage()
           const { width, height } = separatorPage.getSize()
           
           separatorPage.drawText(`Resume for Candidate: ${candidate.candidate_name}`, {
@@ -376,7 +350,7 @@ async function mergePDFs(mainReportBuffer: Uint8Array, candidatesWithResumes: PD
           })
           
           // Add the resume pages
-          resumePages.forEach((page: any) => mergedPdf.addPage(page))
+          resumePages.forEach((page: any) => finalPdf.addPage(page))
           
         } catch (error) {
           console.warn(`Failed to merge resume for ${candidate.candidate_name}:`, error)
@@ -384,11 +358,30 @@ async function mergePDFs(mainReportBuffer: Uint8Array, candidatesWithResumes: PD
       }
     }
     
-    return new Uint8Array(await mergedPdf.save())
+    console.log('PDF generated successfully with embedded resumes')
+    return new Uint8Array(await finalPdf.save())
     
   } catch (error) {
-    console.error('PDF merging error:', error)
-    // Fallback to just the main report
-    return new Uint8Array(mainReportBuffer)
+    console.error('PDF generation error:', error)
+    throw new Error(`PDF generation failed: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+// Helper function to generate PDF for a single candidate
+async function generateCandidateInfoPDF(candidates: PDFCandidate[]): Promise<Uint8Array> {
+  try {
+    // Import renderToBuffer dynamically to avoid SSR issues
+    const { renderToBuffer } = await import('@react-pdf/renderer')
+    
+    // Create the candidate information PDF
+    const candidateInfoBuffer = await renderToBuffer(
+      <PDFDocumentComponent candidates={candidates} />
+    )
+    
+    return new Uint8Array(candidateInfoBuffer)
+    
+  } catch (error) {
+    console.error('Error generating candidate info PDF:', error)
+    throw error
   }
 } 
