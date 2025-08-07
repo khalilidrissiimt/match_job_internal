@@ -2,6 +2,115 @@ import { google } from "@ai-sdk/google";
 
 const model = google("models/gemini-2.0-flash-001");
 
+// Cache for skill summaries to avoid duplicate API calls
+const skillCache = new Map<string, string>();
+const feedbackCache = new Map<string, string>();
+
+// Cache cleanup to prevent memory leaks
+const MAX_CACHE_SIZE = 1000;
+const CACHE_CLEANUP_INTERVAL = 100; // Cleanup every 100 operations
+
+let operationCount = 0;
+
+function cleanupCache() {
+  operationCount++;
+  if (operationCount % CACHE_CLEANUP_INTERVAL === 0) {
+    if (skillCache.size > MAX_CACHE_SIZE) {
+      const entries = Array.from(skillCache.entries());
+      skillCache.clear();
+      // Keep only the most recent entries
+      entries.slice(-MAX_CACHE_SIZE / 2).forEach(([key, value]) => {
+        skillCache.set(key, value);
+      });
+    }
+    if (feedbackCache.size > MAX_CACHE_SIZE) {
+      const entries = Array.from(feedbackCache.entries());
+      feedbackCache.clear();
+      // Keep only the most recent entries
+      entries.slice(-MAX_CACHE_SIZE / 2).forEach(([key, value]) => {
+        feedbackCache.set(key, value);
+      });
+    }
+  }
+}
+
+// Batch processing for multiple candidates
+export async function batchAnalyzeFeedback(feedbackList: any[]): Promise<string[]> {
+  const uniqueFeedback = new Map<string, any>();
+  
+  // Deduplicate feedback to avoid analyzing the same feedback multiple times
+  feedbackList.forEach((feedback, index) => {
+    const feedbackKey = JSON.stringify(feedback);
+    if (!uniqueFeedback.has(feedbackKey)) {
+      uniqueFeedback.set(feedbackKey, { feedback, originalIndex: index });
+    }
+  });
+
+  // Analyze unique feedback patterns
+  const uniqueFeedbackArray = Array.from(uniqueFeedback.values());
+  const analysisPromises = uniqueFeedbackArray.map(async ({ feedback, originalIndex }) => {
+    const cacheKey = JSON.stringify(feedback);
+    
+    // Check cache first
+    if (feedbackCache.has(cacheKey)) {
+      return { result: feedbackCache.get(cacheKey)!, originalIndex };
+    }
+    
+    const result = await analyzeFeedback(feedback);
+    feedbackCache.set(cacheKey, result);
+    cleanupCache();
+    return { result, originalIndex };
+  });
+
+  const results = await Promise.all(analysisPromises);
+  
+  // Map results back to original order
+  const resultMap = new Map();
+  results.forEach(({ result, originalIndex }) => {
+    resultMap.set(originalIndex, result);
+  });
+  
+  return feedbackList.map((_, index) => resultMap.get(index) || 'No analysis available');
+}
+
+export async function batchSummarizeSkills(skillLists: string[][]): Promise<string[]> {
+  const uniqueSkillSets = new Map<string, { skills: string[], originalIndex: number }>();
+  
+  // Deduplicate skill sets
+  skillLists.forEach((skills, index) => {
+    const skillKey = skills.sort().join(',');
+    if (!uniqueSkillSets.has(skillKey)) {
+      uniqueSkillSets.set(skillKey, { skills, originalIndex: index });
+    }
+  });
+
+  // Process unique skill sets
+  const uniqueSkillArray = Array.from(uniqueSkillSets.values());
+  const summaryPromises = uniqueSkillArray.map(async ({ skills, originalIndex }) => {
+    const cacheKey = skills.sort().join(',');
+    
+    // Check cache first
+    if (skillCache.has(cacheKey)) {
+      return { result: skillCache.get(cacheKey)!, originalIndex };
+    }
+    
+    const result = await summarizeSkills(skills);
+    skillCache.set(cacheKey, result);
+    cleanupCache();
+    return { result, originalIndex };
+  });
+
+  const results = await Promise.all(summaryPromises);
+  
+  // Map results back to original order
+  const resultMap = new Map();
+  results.forEach(({ result, originalIndex }) => {
+    resultMap.set(originalIndex, result);
+  });
+  
+  return skillLists.map((_, index) => resultMap.get(index) || 'No summary available');
+}
+
 export async function extractSkills(description: string): Promise<string[]> {
   const prompt = `
 You are an expert HR professional and technical recruiter. Your task is to extract ALL relevant skills from the job description.

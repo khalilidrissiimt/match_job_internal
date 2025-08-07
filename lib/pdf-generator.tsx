@@ -1,5 +1,5 @@
 import React from 'react'
-import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Font, pdf } from '@react-pdf/renderer'
 import path from 'path'
 
 export interface PDFCandidate {
@@ -11,6 +11,8 @@ export interface PDFCandidate {
   transcript: string
   feedback?: any // Add feedback field for JSONB data
   email?: string // Add email field
+  cv_resume?: string // Add CV/Resume field
+  cv_resume_pdf?: Uint8Array // Add actual PDF content
 }
 
 // Register fonts for better Unicode support
@@ -19,6 +21,7 @@ Font.register({
   src: path.join(process.cwd(), 'fonts', 'Amiri-Regular.ttf'),
 })
 
+// Use Helvetica font (built-in, reliable) for English text
 Font.register({
   family: 'Helvetica',
   src: 'Helvetica',
@@ -28,61 +31,137 @@ Font.register({
 const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
-    backgroundColor: '#ffffff',
-    padding: 30,
+    backgroundColor: '#fafafa',
+    padding: 40,
     fontSize: 10,
   },
   header: {
-    fontSize: 18,
-    marginBottom: 20,
+    fontSize: 24,
+    marginBottom: 30,
     textAlign: 'center',
     fontFamily: 'Helvetica',
     fontWeight: 'bold',
+    color: '#1a1a1a',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   candidateSection: {
-    marginBottom: 20,
-    borderBottom: '1 solid #ccc',
-    paddingBottom: 15,
+    marginBottom: 30,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    padding: 25,
+    shadow: '0 2px 8px rgba(0,0,0,0.1)',
+    border: '1 solid #e8e8e8',
   },
   candidateName: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 15,
     fontFamily: 'Helvetica',
+    color: '#2c3e50',
+    borderBottom: '2 solid #3498db',
+    paddingBottom: 8,
   },
   sectionTitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
-    marginTop: 15,
-    marginBottom: 5,
+    marginTop: 20,
+    marginBottom: 8,
     fontFamily: 'Helvetica',
+    color: '#34495e',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   text: {
     fontSize: 10,
-    marginBottom: 5,
+    marginBottom: 6,
     fontFamily: 'Helvetica',
-    lineHeight: 1.4,
+    lineHeight: 1.5,
+    color: '#2c3e50',
   },
   arabicText: {
     fontSize: 10,
-    marginBottom: 5,
+    marginBottom: 6,
     fontFamily: 'Amiri',
-    lineHeight: 1.4,
+    lineHeight: 1.5,
     textAlign: 'right',
+    color: '#2c3e50',
   },
   skillsList: {
-    marginBottom: 10,
+    marginBottom: 15,
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 6,
   },
   skill: {
     fontSize: 9,
-    marginBottom: 2,
+    marginBottom: 4,
     fontFamily: 'Helvetica',
+    color: '#495057',
+    paddingLeft: 8,
   },
   email: {
     fontSize: 10,
-    marginTop: 10,
+    marginTop: 12,
     fontFamily: 'Helvetica',
-    color: '#0066cc',
+    color: '#3498db',
+    fontWeight: 'bold',
+  },
+  feedbackSection: {
+    marginTop: 15,
+    marginBottom: 20,
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 6,
+  },
+  feedbackItem: {
+    fontSize: 9,
+    marginBottom: 12,
+    fontFamily: 'Helvetica',
+    lineHeight: 1.4,
+    padding: 8,
+    backgroundColor: '#ffffff',
+    borderRadius: 4,
+    border: '1 solid #e9ecef',
+  },
+  matchScore: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#27ae60',
+    backgroundColor: '#d5f4e6',
+    padding: 8,
+    borderRadius: 4,
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  summaryBox: {
+    backgroundColor: '#e8f4fd',
+    padding: 12,
+    borderRadius: 6,
+    border: '1 solid #bee5eb',
+    marginBottom: 15,
+  },
+  analysisBox: {
+    backgroundColor: '#fff3cd',
+    padding: 12,
+    borderRadius: 6,
+    border: '1 solid #ffeaa7',
+    marginBottom: 15,
+  },
+  transcriptBox: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 6,
+    border: '1 solid #e9ecef',
+    marginBottom: 15,
+  },
+  feedbackHeader: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    fontFamily: 'Helvetica',
+    color: '#2c3e50',
+    textTransform: 'capitalize',
   },
 })
 
@@ -91,7 +170,7 @@ function containsArabic(text: string): boolean {
   return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text)
 }
 
-// Helper function to format feedback
+// Helper function to format feedback with proper structure
 function formatFeedback(feedback: any): string {
   if (!feedback) return 'No feedback available'
   
@@ -102,8 +181,12 @@ function formatFeedback(feedback: any): string {
   if (typeof feedback === 'object') {
     try {
       return Object.entries(feedback)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join(' | ')
+        .map(([key, value]) => {
+          // Format the key to be more readable
+          const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+          return `${formattedKey}:\n${value}`
+        })
+        .join('\n\n')
     } catch (error) {
       return JSON.stringify(feedback)
     }
@@ -118,6 +201,27 @@ function truncateText(text: string, maxLength: number = 1000): string {
   return text.substring(0, maxLength) + '... (truncated)'
 }
 
+// Helper function to wrap long text for PDF
+function wrapTextForPDF(text: string, maxWidth: number = 80): string {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+  
+  words.forEach(word => {
+    if ((currentLine + ' ' + word).length <= maxWidth) {
+      currentLine += (currentLine ? ' ' : '') + word;
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    }
+  });
+  
+  if (currentLine) lines.push(currentLine);
+  return lines.join('\n');
+}
+
+
+
 // Create PDF Document component
 function PDFDocumentComponent({ candidates }: { candidates: PDFCandidate[] }) {
   return (
@@ -128,14 +232,18 @@ function PDFDocumentComponent({ candidates }: { candidates: PDFCandidate[] }) {
           
           {candidates.map((candidate, index) => (
             <View key={index} style={styles.candidateSection}>
-              <Text style={styles.candidateName}>
-                {candidate.candidate_name}
-              </Text>
-              
-              <Text style={styles.sectionTitle}>Match Score</Text>
-              <Text style={styles.text}>
-                Matched {candidate.match_count} skills
-              </Text>
+                             <Text style={styles.candidateName}>
+                 Candidate {index + 1}: {candidate.candidate_name}
+               </Text>
+               
+               
+               
+                              <Text style={styles.sectionTitle}>Match Score</Text>
+               <View style={styles.matchScore}>
+                 <Text style={[styles.text, { color: '#27ae60', fontWeight: 'bold' }]}>
+                   Matched {candidate.match_count} skills
+                 </Text>
+               </View>
               
               <Text style={styles.sectionTitle}>Matched Skills</Text>
               <View style={styles.skillsList}>
@@ -146,25 +254,48 @@ function PDFDocumentComponent({ candidates }: { candidates: PDFCandidate[] }) {
                 ))}
               </View>
               
-              <Text style={styles.sectionTitle}>Summary</Text>
-              <Text style={styles.text}>
-                {candidate.summary || 'No summary available'}
-              </Text>
+                             <Text style={styles.sectionTitle}>Summary</Text>
+               <View style={styles.summaryBox}>
+                 <Text style={styles.text}>
+                   {candidate.summary || 'No summary available'}
+                 </Text>
+               </View>
               
-              <Text style={styles.sectionTitle}>Feedback Analysis</Text>
-              <Text style={styles.text}>
-                {candidate.feedback_review || 'No analysis available'}
-              </Text>
+                             <Text style={styles.sectionTitle}>Feedback Analysis</Text>
+               <View style={styles.analysisBox}>
+                 <Text style={styles.text}>
+                   {candidate.feedback_review || 'No analysis available'}
+                 </Text>
+               </View>
               
               <Text style={styles.sectionTitle}>Feedback</Text>
-              <Text style={containsArabic(formatFeedback(candidate.feedback)) ? styles.arabicText : styles.text}>
-                {formatFeedback(candidate.feedback)}
-              </Text>
+              <View style={styles.feedbackSection}>
+                {formatFeedback(candidate.feedback).split('\n\n').map((section, sectionIndex) => {
+                  if (!section.trim()) return null;
+                  
+                  const lines = section.split('\n');
+                  const title = lines[0];
+                  const content = lines.slice(1).join('\n');
+                  
+                                     return (
+                     <View key={sectionIndex} style={styles.feedbackItem}>
+                       <Text style={styles.feedbackHeader}>
+                         {title}
+                       </Text>
+                       <Text style={[styles.text, { fontSize: 9 }]}>
+                         {wrapTextForPDF(content, 70)}
+                       </Text>
+                     </View>
+                   );
+                })}
+              </View>
               
-              <Text style={styles.sectionTitle}>Interview Transcript</Text>
-              <Text style={containsArabic(candidate.transcript) ? styles.arabicText : styles.text}>
-                {truncateText(candidate.transcript || 'No transcript available', 1500)}
-              </Text>
+                             <Text style={styles.sectionTitle}>Interview Transcript</Text>
+               <View style={styles.transcriptBox}>
+                 <Text style={containsArabic(candidate.transcript) ? styles.arabicText : styles.text}>
+                   {wrapTextForPDF(truncateText(candidate.transcript || 'No transcript available', 1500), 70)}
+                 </Text>
+               </View>
               
               {candidate.email && (
                 <>
@@ -187,16 +318,77 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
     // Import renderToBuffer dynamically to avoid SSR issues
     const { renderToBuffer } = await import('@react-pdf/renderer')
     
-    // Create the PDF document using JSX
-    const pdfBuffer = await renderToBuffer(
+    // Create the main report PDF
+    const mainReportBuffer = await renderToBuffer(
       <PDFDocumentComponent candidates={candidates} />
     )
     
+    // If we have resume PDFs, merge them
+    const candidatesWithResumes = candidates.filter(c => c.cv_resume_pdf)
+    
+    if (candidatesWithResumes.length > 0) {
+      console.log(`Merging ${candidatesWithResumes.length} resume PDFs...`)
+      
+      // Create a combined PDF with main report + resume PDFs
+      const combinedPdf = await mergePDFs(mainReportBuffer, candidatesWithResumes)
+      console.log('PDF generated successfully with embedded resumes')
+      return combinedPdf
+    }
+    
     console.log('PDF generated successfully with @react-pdf/renderer')
-    return new Uint8Array(pdfBuffer)
+    return new Uint8Array(mainReportBuffer)
     
   } catch (error) {
     console.error('PDF generation error:', error)
     throw new Error(`PDF generation failed: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+// Helper function to merge PDFs
+async function mergePDFs(mainReportBuffer: Uint8Array, candidatesWithResumes: PDFCandidate[]): Promise<Uint8Array> {
+  try {
+    // Import PDF-lib for merging
+    const { PDFDocument } = await import('pdf-lib')
+    
+    // Create a new PDF document
+    const mergedPdf = await PDFDocument.create()
+    
+    // Add the main report
+    const mainReportPdf = await PDFDocument.load(mainReportBuffer)
+    const mainReportPages = await mergedPdf.copyPages(mainReportPdf, mainReportPdf.getPageIndices())
+    mainReportPages.forEach((page: any) => mergedPdf.addPage(page))
+    
+    // Add each candidate's resume PDF
+    for (const candidate of candidatesWithResumes) {
+      if (candidate.cv_resume_pdf) {
+        try {
+          const resumePdf = await PDFDocument.load(candidate.cv_resume_pdf)
+          const resumePages = await mergedPdf.copyPages(resumePdf, resumePdf.getPageIndices())
+          
+          // Add a separator page with candidate name
+          const separatorPage = mergedPdf.addPage()
+          const { width, height } = separatorPage.getSize()
+          
+          separatorPage.drawText(`Resume for Candidate: ${candidate.candidate_name}`, {
+            x: 50,
+            y: height - 100,
+            size: 16,
+          })
+          
+          // Add the resume pages
+          resumePages.forEach((page: any) => mergedPdf.addPage(page))
+          
+        } catch (error) {
+          console.warn(`Failed to merge resume for ${candidate.candidate_name}:`, error)
+        }
+      }
+    }
+    
+    return new Uint8Array(await mergedPdf.save())
+    
+  } catch (error) {
+    console.error('PDF merging error:', error)
+    // Fallback to just the main report
+    return new Uint8Array(mainReportBuffer)
   }
 } 

@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 // Create Supabase client with fallback values
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || 'placeholder_key'
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key'
 )
 
 export default function EmailCollector() {
@@ -28,7 +28,7 @@ export default function EmailCollector() {
 
     try {
       // Check if Supabase is properly configured
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY) {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
         throw new Error('Database not configured')
       }
 

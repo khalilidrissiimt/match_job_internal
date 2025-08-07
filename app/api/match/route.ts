@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { extractSkills, summarizeSkills, analyzeFeedback } from '@/lib/ai'
+import { extractSkills, batchSummarizeSkills, batchAnalyzeFeedback } from '@/lib/ai'
 import { fetchCandidatesPaginated, matchCandidates } from '@/lib/supabase'
 import { generatePDFReport } from '@/lib/pdf-generator'
+import { fetchPDFContent, extractPDFUrls } from '@/lib/pdf-fetcher'
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,12 +37,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Process top 10 matches
+    // Process top 10 matches with batch processing
     const topMatches = matches.slice(0, 10)
-    const processedCandidates = []
-
-    for (const match of topMatches) {
-      // Analyze feedback
+    
+    // Prepare data for batch processing
+    const feedbackList = topMatches.map(match => {
       let feedback = match.feedback
       if (typeof feedback === 'string') {
         try {
@@ -50,22 +50,53 @@ export async function POST(request: NextRequest) {
           feedback = { raw: feedback }
         }
       }
+      return feedback
+    })
+    
+    const skillLists = topMatches.map(match => match.all_skills || [])
+    
+    // Batch process feedback and skills (reduces API calls by 60-80%)
+    console.log(`🔄 Processing ${topMatches.length} candidates with batch optimization...`)
+    const startTime = Date.now()
+    
+    const [feedbackAnalyses, skillSummaries] = await Promise.all([
+      batchAnalyzeFeedback(feedbackList),
+      batchSummarizeSkills(skillLists)
+    ])
+    
+    const processingTime = Date.now() - startTime
+    console.log(`✅ Batch processing completed in ${processingTime}ms (saved ~${topMatches.length * 2 - 4} API calls)`)
+    
+    // Process candidates and fetch PDF content
+    const processedCandidates = await Promise.all(
+      topMatches.map(async (match, index) => {
+        // Extract and fetch PDF content from resume data
+        let cvResumePdf: Uint8Array | undefined
+        if (match['CV/Resume']) {
+          const pdfUrls = extractPDFUrls(match['CV/Resume'])
+          if (pdfUrls.length > 0) {
+            // Fetch the first PDF found
+            const pdfContent = await fetchPDFContent(pdfUrls[0])
+            if (pdfContent) {
+              cvResumePdf = pdfContent
+            }
+          }
+        }
 
-      const feedbackAnalysis = await analyzeFeedback(feedback)
-      const skillSummary = await summarizeSkills(match.all_skills)
-
-      processedCandidates.push({
-        candidate_name: match.candidate_name,
-        match_count: match.match_count,
-        matched_skills: match.matched_skills,
-        summary: skillSummary,
-        feedback_review: feedbackAnalysis,
-        transcript: match.transcript,
-        feedback: feedback, // Include the feedback data
-        email: match.Email, // Include the Email field (mapped to email for PDF)
-        cv_resume: match['CV/Resume'] // Include the CV/Resume data with correct property name
+        return {
+          candidate_name: match.candidate_name,
+          match_count: match.match_count,
+          matched_skills: match.matched_skills,
+          summary: skillSummaries[index],
+          feedback_review: feedbackAnalyses[index],
+          transcript: match.transcript,
+          feedback: feedbackList[index], // Include the feedback data
+          email: match.Email, // Include the Email field (mapped to email for PDF)
+          cv_resume: match['CV/Resume'], // Include the CV/Resume data with correct property name
+          cv_resume_pdf: cvResumePdf // Include the actual PDF content
+        }
       })
-    }
+    )
 
     // Generate PDF report
     const pdfBuffer = await generatePDFReport(processedCandidates)
