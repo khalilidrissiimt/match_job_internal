@@ -90,7 +90,9 @@ export function matchCandidates(jobSkills: string[], candidates: Candidate[]): M
         }
         
         // Check if job skill is a complete word within candidate skill
-        const jobSkillRegex = new RegExp(`\\b${jobSkill}\\b`, 'i')
+        // Escape special regex characters in jobSkill
+        const escapedJobSkill = jobSkill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const jobSkillRegex = new RegExp(`\\b${escapedJobSkill}\\b`, 'i')
         if (jobSkillRegex.test(candidateSkill)) {
           return true
         }
