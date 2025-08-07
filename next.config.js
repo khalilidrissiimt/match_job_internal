@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['pdf-lib', 'jspdf']
+    serverComponentsExternalPackages: ['@react-pdf/renderer']
   }
 }
 
