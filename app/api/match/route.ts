@@ -72,16 +72,38 @@ export async function POST(request: NextRequest) {
       topMatches.map(async (match, index) => {
         // Extract and fetch PDF content from resume data
         let cvResumePdf: Uint8Array | undefined
+        let resumeStatus = 'No resume data'
+        
         if (match['CV/Resume']) {
-          const pdfUrls = extractPDFUrls(match['CV/Resume'])
-          if (pdfUrls.length > 0) {
-            // Fetch the first PDF found
-            const pdfContent = await fetchPDFContent(pdfUrls[0])
-            if (pdfContent) {
-              cvResumePdf = pdfContent
+          try {
+            const pdfUrls = extractPDFUrls(match['CV/Resume'])
+            console.log(`📄 Candidate ${match.candidate_name}: Found ${pdfUrls.length} PDF URLs`)
+            
+            if (pdfUrls.length > 0) {
+              console.log(`🔄 Fetching PDF from: ${pdfUrls[0]}`)
+              const pdfContent = await fetchPDFContent(pdfUrls[0])
+              if (pdfContent) {
+                cvResumePdf = pdfContent
+                resumeStatus = `Resume PDF fetched (${pdfContent.length} bytes)`
+                console.log(`✅ Resume PDF fetched for ${match.candidate_name}: ${pdfContent.length} bytes`)
+              } else {
+                resumeStatus = 'Failed to fetch PDF content'
+                console.log(`❌ Failed to fetch PDF for ${match.candidate_name}`)
+              }
+            } else {
+              resumeStatus = 'No PDF URLs found in resume data'
+              console.log(`⚠️ No PDF URLs found for ${match.candidate_name}`)
             }
+          } catch (error) {
+            resumeStatus = `PDF fetch error: ${error instanceof Error ? error.message : 'Unknown error'}`
+            console.error(`❌ Error fetching PDF for ${match.candidate_name}:`, error)
           }
+        } else {
+          resumeStatus = 'No resume data in database'
+          console.log(`ℹ️ No resume data for ${match.candidate_name}`)
         }
+        
+        console.log(`📋 ${match.candidate_name}: ${resumeStatus}`)
 
         return {
           candidate_name: match.candidate_name,
@@ -99,6 +121,24 @@ export async function POST(request: NextRequest) {
     )
 
     // Generate PDF report
+    console.log('🔄 Generating PDF report for match API...')
+    
+    // Log summary of resume status
+    const candidatesWithResumes = processedCandidates.filter(c => c.cv_resume_pdf)
+    const candidatesWithoutResumes = processedCandidates.filter(c => !c.cv_resume_pdf)
+    
+    console.log(`📊 Resume Summary:`)
+    console.log(`   ✅ Candidates with resumes: ${candidatesWithResumes.length}`)
+    console.log(`   ❌ Candidates without resumes: ${candidatesWithoutResumes.length}`)
+    console.log(`   📄 Total candidates: ${processedCandidates.length}`)
+    
+    if (candidatesWithResumes.length > 0) {
+      console.log(`   📋 Candidates with resumes: ${candidatesWithResumes.map(c => c.candidate_name).join(', ')}`)
+    }
+    if (candidatesWithoutResumes.length > 0) {
+      console.log(`   📋 Candidates without resumes: ${candidatesWithoutResumes.map(c => c.candidate_name).join(', ')}`)
+    }
+    
     const pdfBuffer = await generatePDFReport(processedCandidates)
     const pdfBase64 = Buffer.from(pdfBuffer).toString('base64')
 
