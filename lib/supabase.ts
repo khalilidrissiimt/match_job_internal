@@ -66,7 +66,7 @@ export async function fetchCandidatesPaginated(limit = 1000): Promise<Candidate[
 }
 
 export function matchCandidates(jobSkills: string[], candidates: Candidate[]): MatchedCandidate[] {
-  const jobSet = new Set(jobSkills)
+  const jobSet = new Set(jobSkills.map(skill => skill.toLowerCase().trim()))
   const matches: MatchedCandidate[] = []
 
   for (const candidate of candidates) {
@@ -75,11 +75,36 @@ export function matchCandidates(jobSkills: string[], candidates: Candidate[]): M
       .map(s => s.trim().toLowerCase())
       .filter(s => s.length > 0) || []
 
-    const matched = Array.from(jobSet).filter(skill => 
-      skills.some(candidateSkill => 
-        candidateSkill.includes(skill) || skill.includes(candidateSkill)
-      )
-    )
+    // More precise matching logic
+    const matched = Array.from(jobSet).filter(jobSkill => {
+      return skills.some(candidateSkill => {
+        // Exact match (highest priority)
+        if (candidateSkill === jobSkill) {
+          return true
+        }
+        
+        // Word boundary match (e.g., "qiwa" matches "qiwa system" but not "myqiwa")
+        const candidateWords = candidateSkill.split(/\s+/)
+        if (candidateWords.includes(jobSkill)) {
+          return true
+        }
+        
+        // Check if job skill is a complete word within candidate skill
+        const jobSkillRegex = new RegExp(`\\b${jobSkill}\\b`, 'i')
+        if (jobSkillRegex.test(candidateSkill)) {
+          return true
+        }
+        
+        // For very specific terms (like government systems), be more strict
+        const specificTerms = ['qiwa', 'gosi', 'ajeer', 'muqeem', 'absher', 'tamkeen']
+        if (specificTerms.includes(jobSkill.toLowerCase())) {
+          // Only exact matches or word boundary matches for specific terms
+          return candidateSkill === jobSkill || candidateWords.includes(jobSkill)
+        }
+        
+        return false
+      })
+    })
 
     if (matched.length > 0) {
       matches.push({
