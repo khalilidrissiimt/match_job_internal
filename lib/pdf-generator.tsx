@@ -187,9 +187,9 @@ export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uin
     // Import renderToBuffer dynamically to avoid SSR issues
     const { renderToBuffer } = await import('@react-pdf/renderer')
     
-    // Create the PDF document
+    // Create the PDF document using JSX
     const pdfBuffer = await renderToBuffer(
-      React.createElement(PDFDocumentComponent, { candidates })
+      <PDFDocumentComponent candidates={candidates} />
     )
     
     console.log('PDF generated successfully with @react-pdf/renderer')
