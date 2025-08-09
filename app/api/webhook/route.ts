@@ -106,6 +106,11 @@ export async function POST(request: NextRequest) {
       const feedbackAnalysis = await analyzeFeedback(feedback)
       const skillSummary = await summarizeSkills(match.all_skills)
 
+      // Ensure we have a valid summary
+      const candidateSummary = skillSummary && skillSummary.trim() 
+        ? skillSummary 
+        : `Professional with skills in ${(match.all_skills || []).slice(0, 5).join(', ')} and additional expertise.`;
+
       // Extract and fetch PDF content from resume data
       let cvResumePdf: Uint8Array | undefined
       let resumeStatus = 'No resume data'
@@ -145,7 +150,7 @@ export async function POST(request: NextRequest) {
         candidate_name: match.candidate_name,
         match_count: match.match_count,
         matched_skills: match.matched_skills,
-        summary: skillSummary,
+        summary: candidateSummary,
         feedback_review: feedbackAnalysis,
         transcript: match.transcript,
         feedback: feedback, // Include the feedback data

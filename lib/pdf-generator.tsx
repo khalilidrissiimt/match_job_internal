@@ -195,10 +195,10 @@ function formatFeedback(feedback: any): string {
   return String(feedback)
 }
 
-// Helper function to truncate text
-function truncateText(text: string, maxLength: number = 1000): string {
-  if (text.length <= maxLength) return text
-  return text.substring(0, maxLength) + '... (truncated)'
+// Helper function to truncate text (only for very long texts to prevent PDF overflow)
+function truncateText(text: string, maxLength: number = 10000): string {
+  if (!text || text.length <= maxLength) return text
+  return text.substring(0, maxLength) + '... (truncated due to length)'
 }
 
 // Helper function to wrap long text for PDF
@@ -224,6 +224,25 @@ function wrapTextForPDF(text: string, maxWidth: number = 80): string {
 
 // Create PDF Document component
 function PDFDocumentComponent({ candidates }: { candidates: PDFCandidate[] }) {
+  // Debug logging for missing data
+  candidates.forEach((candidate, index) => {
+    if (!candidate.summary || !candidate.summary.trim()) {
+      console.warn(`⚠️ Candidate ${index + 1} (${candidate.candidate_name}) has no summary:`, {
+        summary: candidate.summary,
+        hasSummary: !!candidate.summary,
+        summaryLength: candidate.summary?.length || 0
+      });
+    }
+    
+    if (!candidate.transcript || !candidate.transcript.trim()) {
+      console.warn(`⚠️ Candidate ${index + 1} (${candidate.candidate_name}) has no transcript:`, {
+        transcript: candidate.transcript,
+        hasTranscript: !!candidate.transcript,
+        transcriptLength: candidate.transcript?.length || 0
+      });
+    }
+  });
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -257,7 +276,7 @@ function PDFDocumentComponent({ candidates }: { candidates: PDFCandidate[] }) {
                              <Text style={styles.sectionTitle}>Summary</Text>
                <View style={styles.summaryBox}>
                  <Text style={styles.text}>
-                   {candidate.summary || 'No summary available'}
+                   {candidate.summary && candidate.summary.trim() ? candidate.summary : 'Skill summary not available - please check candidate data'}
                  </Text>
                </View>
               
@@ -293,7 +312,10 @@ function PDFDocumentComponent({ candidates }: { candidates: PDFCandidate[] }) {
                              <Text style={styles.sectionTitle}>Interview Transcript</Text>
                <View style={styles.transcriptBox}>
                  <Text style={containsArabic(candidate.transcript) ? styles.arabicText : styles.text}>
-                   {wrapTextForPDF(truncateText(candidate.transcript || 'No transcript available', 1500), 70)}
+                   {candidate.transcript && candidate.transcript.trim() 
+                     ? wrapTextForPDF(candidate.transcript, 70)
+                     : 'No transcript available for this candidate.'
+                   }
                  </Text>
                </View>
               
@@ -314,6 +336,20 @@ function PDFDocumentComponent({ candidates }: { candidates: PDFCandidate[] }) {
 export async function generatePDFReport(candidates: PDFCandidate[]): Promise<Uint8Array> {
   try {
     console.log('Generating PDF with candidate information and embedded resumes...')
+    console.log(`📊 Processing ${candidates.length} candidates`)
+    
+    // Log candidate data for debugging
+    candidates.forEach((candidate, index) => {
+      console.log(`📋 Candidate ${index + 1} (${candidate.candidate_name}):`, {
+        hasSummary: !!candidate.summary,
+        summaryLength: candidate.summary?.length || 0,
+        hasTranscript: !!candidate.transcript,
+        transcriptLength: candidate.transcript?.length || 0,
+        hasFeedback: !!candidate.feedback,
+        hasResume: !!candidate.cv_resume_pdf,
+        resumeSize: candidate.cv_resume_pdf?.length || 0
+      });
+    });
     
     // Import PDF-lib for merging
     const { PDFDocument } = await import('pdf-lib')

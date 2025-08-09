@@ -67,6 +67,12 @@ export async function POST(request: NextRequest) {
     const processingTime = Date.now() - startTime
     console.log(`✅ Batch processing completed in ${processingTime}ms (saved ~${topMatches.length * 2 - 4} API calls)`)
     
+    // Debug skill summaries
+    console.log('🔍 Skill Summaries Debug:')
+    skillSummaries.forEach((summary, index) => {
+      console.log(`  Candidate ${index + 1}: ${summary ? '✅' : '❌'} ${summary?.length || 0} chars`)
+    })
+    
     // Process candidates and fetch PDF content
     const processedCandidates = await Promise.all(
       topMatches.map(async (match, index) => {
@@ -105,11 +111,16 @@ export async function POST(request: NextRequest) {
         
         console.log(`📋 ${match.candidate_name}: ${resumeStatus}`)
 
+        // Ensure we have a valid summary
+        const candidateSummary = skillSummaries[index] && skillSummaries[index].trim() 
+          ? skillSummaries[index] 
+          : `Professional with skills in ${(match.all_skills || []).slice(0, 5).join(', ')} and additional expertise.`;
+
         return {
           candidate_name: match.candidate_name,
           match_count: match.match_count,
           matched_skills: match.matched_skills,
-          summary: skillSummaries[index],
+          summary: candidateSummary,
           feedback_review: feedbackAnalyses[index],
           transcript: match.transcript,
           feedback: feedbackList[index], // Include the feedback data

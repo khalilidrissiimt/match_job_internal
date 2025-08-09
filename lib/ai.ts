@@ -94,10 +94,18 @@ export async function batchSummarizeSkills(skillLists: string[][]): Promise<stri
       return { result: skillCache.get(cacheKey)!, originalIndex };
     }
     
-    const result = await summarizeSkills(skills);
-    skillCache.set(cacheKey, result);
-    cleanupCache();
-    return { result, originalIndex };
+    try {
+      const result = await summarizeSkills(skills);
+      skillCache.set(cacheKey, result);
+      cleanupCache();
+      return { result, originalIndex };
+    } catch (error) {
+      console.error(`Failed to generate summary for skills at index ${originalIndex}:`, error);
+      // Generate a fallback summary
+      const fallback = generateFallbackSummary(skills);
+      skillCache.set(cacheKey, fallback);
+      return { result: fallback, originalIndex };
+    }
   });
 
   const results = await Promise.all(summaryPromises);
@@ -108,7 +116,40 @@ export async function batchSummarizeSkills(skillLists: string[][]): Promise<stri
     resultMap.set(originalIndex, result);
   });
   
-  return skillLists.map((_, index) => resultMap.get(index) || 'No summary available');
+  return skillLists.map((skills, index) => {
+    const summary = resultMap.get(index);
+    if (summary && summary.trim()) {
+      return summary;
+    }
+    
+    // If no summary was generated, create a fallback
+    if (skills && skills.length > 0) {
+      return generateFallbackSummary(skills);
+    }
+    
+    return 'No skills data available for this candidate.';
+  });
+}
+
+// Helper function to generate fallback summaries
+function generateFallbackSummary(skills: string[]): string {
+  if (!skills || skills.length === 0) {
+    return 'No skills data available for this candidate.';
+  }
+  
+  const validSkills = skills.filter(skill => skill && skill.trim().length > 0);
+  
+  if (validSkills.length === 0) {
+    return 'No valid skills data available for this candidate.';
+  }
+  
+  if (validSkills.length <= 3) {
+    return `Professional with focused expertise in ${validSkills.join(', ')}.`;
+  } else if (validSkills.length <= 8) {
+    return `Experienced professional with strong skills in ${validSkills.slice(0, 4).join(', ')} and additional capabilities in ${validSkills.slice(4).join(', ')}.`;
+  } else {
+    return `Highly skilled professional with comprehensive expertise in ${validSkills.slice(0, 5).join(', ')} and proficiency in ${validSkills.length - 5} additional areas including ${validSkills.slice(5, 8).join(', ')}.`;
+  }
 }
 
 export async function extractSkills(description: string): Promise<string[]> {
@@ -155,6 +196,18 @@ Extract ALL skills:`
 }
 
 export async function summarizeSkills(skillList: string[]): Promise<string> {
+  // Handle empty or invalid skill lists
+  if (!skillList || skillList.length === 0) {
+    return 'No skills data available for this candidate.'
+  }
+  
+  // Filter out empty or invalid skills
+  const validSkills = skillList.filter(skill => skill && skill.trim().length > 0)
+  
+  if (validSkills.length === 0) {
+    return 'No valid skills data available for this candidate.'
+  }
+
   const prompt = `
 You are an expert career consultant and HR professional. Create a comprehensive skill summary for a candidate.
 
@@ -166,7 +219,7 @@ Instructions:
 - Write 2-3 detailed sentences that capture the candidate's professional profile
 - Be specific about their technical capabilities and experience level
 
-Skills: ${skillList.join(', ')}
+Skills: ${validSkills.join(', ')}
 
 Provide a detailed skill summary:`
 
@@ -178,10 +231,27 @@ Provide a detailed skill summary:`
       temperature: 0.4,
     });
 
-    return response.text?.trim() || ''
+    const summary = response.text?.trim() || ''
+    
+    // Validate the generated summary
+    if (summary && summary.length > 10) {
+      return summary
+    } else {
+      // Fallback to generated summary
+      return `Experienced professional with comprehensive skills in ${validSkills.slice(0, 5).join(', ')} and additional expertise in ${validSkills.length > 5 ? `${validSkills.length - 5} other areas` : 'various domains'}.`
+    }
+    
   } catch (error) {
-    console.error('AI Error:', error);
-    return `Experienced professional with comprehensive skills in ${skillList.slice(0, 5).join(', ')} and additional expertise in ${skillList.length > 5 ? `${skillList.length - 5} other areas` : 'various domains'}.`;
+    console.error('AI Error in summarizeSkills:', error);
+    
+    // Enhanced fallback based on skill count and types
+    if (validSkills.length <= 3) {
+      return `Professional with focused expertise in ${validSkills.join(', ')}.`
+    } else if (validSkills.length <= 8) {
+      return `Experienced professional with strong skills in ${validSkills.slice(0, 4).join(', ')} and additional capabilities in ${validSkills.slice(4).join(', ')}.`
+    } else {
+      return `Highly skilled professional with comprehensive expertise in ${validSkills.slice(0, 5).join(', ')} and proficiency in ${validSkills.length - 5} additional areas including ${validSkills.slice(5, 8).join(', ')}.`
+    }
   }
 }
 

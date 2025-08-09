@@ -69,11 +69,22 @@ export function matchCandidates(jobSkills: string[], candidates: Candidate[]): M
   const jobSet = new Set(jobSkills.map(skill => skill.toLowerCase().trim()))
   const matches: MatchedCandidate[] = []
 
+  console.log(`🔍 Matching ${candidates.length} candidates against ${jobSkills.length} job skills:`, jobSkills)
+
   for (const candidate of candidates) {
     const skills = candidate.skills
       ?.split(',')
       .map(s => s.trim().toLowerCase())
       .filter(s => s.length > 0) || []
+
+    // Debug logging for skills
+    if (skills.length === 0) {
+      console.warn(`⚠️ Candidate ${candidate.candidate_name} has no skills:`, {
+        rawSkills: candidate.skills,
+        hasSkills: !!candidate.skills,
+        skillsType: typeof candidate.skills
+      });
+    }
 
     // More precise matching logic
     const matched = Array.from(jobSet).filter(jobSkill => {
@@ -109,6 +120,7 @@ export function matchCandidates(jobSkills: string[], candidates: Candidate[]): M
     })
 
     if (matched.length > 0) {
+      console.log(`✅ Candidate ${candidate.candidate_name}: matched ${matched.length} skills (${skills.length} total skills)`)
       matches.push({
         candidate_name: candidate.candidate_name || 'Unnamed',
         match_count: matched.length,
@@ -119,8 +131,11 @@ export function matchCandidates(jobSkills: string[], candidates: Candidate[]): M
         Email: candidate.Email || '',
         'CV/Resume': candidate['CV/Resume'] || ''
       })
+    } else {
+      console.log(`❌ Candidate ${candidate.candidate_name}: no skills matched (${skills.length} total skills)`)
     }
   }
 
+  console.log(`📊 Matching complete: ${matches.length} candidates matched out of ${candidates.length} total`)
   return matches.sort((a, b) => b.match_count - a.match_count)
 } 
